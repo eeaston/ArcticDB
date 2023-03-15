@@ -1,17 +1,10 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.12) # FindPython
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake" ${CMAKE_MODULE_PATH})
 cmake_policy(SET CMP0048 NEW)
 project(arcticdb VERSION 0.0.1)
 
 enable_testing()
-
-message(ENV_BASE_DIR="${ENV_BASE_DIR}")
-message(Python_ROOT_DIR="${Python_ROOT_DIR}")
-message(PYTHON_LIBRARIES="${PYTHON_LIBRARIES}")
-message(PYTHON_INCLUDE_DIRS="${PYTHON_INCLUDE_DIRS}")
-message(BUILD_PYTHON_VERSION="${BUILD_PYTHON_VERSION}")
-message(PYTHON_LIBRARY_SO="${PYTHON_LIBRARY_SO}")
 
 if(WIN32)
     add_compile_definitions(NOGDI)
@@ -20,14 +13,13 @@ if(WIN32)
     add_compile_definitions(NOMINMAX)
 
     # Guide to MSVC compilation warnings https://learn.microsoft.com/en-us/cpp/error-messages/compiler-warnings/compiler-warnings-c4000-through-c4199?view=msvc-170
-    set(CMAKE_CXX_FLAGS "/DWIN32 /D_WINDOWS /w /GR /EHsc /w /wd4244 /wd4267")
+    set(CMAKE_CXX_FLAGS "/DWIN32 /D_WINDOWS /w /GR /bigobj /EHsc /w /wd4244 /wd4267")
     set(CMAKE_CXX_FLAGS_RELEASE "/MT /DNDEBUG")
     set(CMAKE_CXX_FLAGS_DEBUG "/MTd /Zi /RTC1")
 else()
     set(CMAKE_CXX_FLAGS "-Wall -Wextra")
     set(CMAKE_CXX_FLAGS_DEBUG "-ggdb")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-    set(STATIC_SYS_LIBS  -static-libgcc -static-libstdc++)
 endif()
 
 IF(DEFINED ENV{CMAKE_BUILD_TYPE})
@@ -40,26 +32,22 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+if(${CMAKE_TOOLCHAIN_FILE} MATCHES "vcpkg.cmake$")
+    message(STATUS "CMAKE_TOOLCHAIN_FILE is set to vcpkg, so will use find_package to find the libraries")
+    set(ARCTICDB_USING_VCPKG ON)
+endif()
+
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(NOT BUILD_PYTHON_VERSION AND NOT WIN32)
-    message("Resetting Python include locations...")
-    # /default-medusa-venv is symlinked to /default-pegasus-venv
-    set(ENV_BASE_DIR "/default-medusa-venv")
-
-    set(BUILD_PYTHON_VERSION 3.6)
-
-    set(PYTHON_LIBRARIES "${ENV_BASE_DIR}/lib")
-    set(PYTHON_EXECUTABLE "${ENV_BASE_DIR}/bin/python")
-    set(PYTHON_INCLUDE_DIRS "${ENV_BASE_DIR}/include/python${BUILD_PYTHON_VERSION}m")
-    set(PYTHON_LIBRARY_SO "${ENV_BASE_DIR}/lib/libpython${BUILD_PYTHON_VERSION}m.so")
-endif()
+include(PythonUtils) # Must be called before Pybind (third_party) to override its finding mechanism
 
 add_subdirectory(third_party)
 add_subdirectory(proto)
+
+python_utils_dump_vars_if_enabled("After Pybind")
 
 #proto files are generated there so it's necessary to include them
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
